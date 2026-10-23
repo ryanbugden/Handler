@@ -1,0 +1,14 @@
+name: Handler
+developer: Ryan Bugden
+developerURL: http://ryanbugden.com
+launchAtStartUp: true
+mainScript: subscriber.py
+version: 0.1
+addToMenu:
+- path: handler.py
+  preferredName: Handler
+  shortKey: ""
+html: true
+timeStamp: 1792765597
+requiresVersionMajor: '4'
+requiresVersionMinor: '5'
