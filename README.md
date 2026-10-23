@@ -33,6 +33,8 @@ A RoboFont extension for viewing and manipulating off-curve handle lengths.
 
 This extension was sponsored by Mathieu Christe ([La Police](https://lapolice.ch/)) in 2026.
 
+Looking for similar RoboFont extensions? Check out [Measure Handles Tool](https://github.com/johannesbreyer/HandleLength), by Johannes Breyer.
+
 ## License
 
 Please see the license included in [build.yaml](build.yaml).
