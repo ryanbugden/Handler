@@ -6,15 +6,13 @@ A RoboFont extension for viewing and manipulating off-curve handle lengths.
 
 ## Usage
 
-1. **Download the extension** from the **Releases** page on this GitHub.
+1. **Download the extension** from this repository’s **Releases** page.
 2. **Install the extension** in RoboFont.
 3. **Select on-curve and/or off-curve points.** Selecting an on-curve includes its associated off-curves. RoboFont’s highlighting shows what’s included.
 4. **Check the handle lengths.** Each selected off-curve displays its handle length below the point, for example, `L=10`.
 5. Run **Handler** to adjust the lengths of selected off-curve handles.
 
-      > [!NOTE]
-      > You can set a keyboard shortcut for Handler through RoboFont’s preferences.
-      > `Preferences > Short Keys > Extensions > Handler > Handler`
+      *Note: You can set a keyboard shortcut for Handler through RoboFont’s preferences:* `Preferences > Short Keys > Extensions > Handler > Handler`
 
       | Input | Effect                    |
       | ----- | ------------------------- |
