@@ -10,9 +10,7 @@ reload(tools)
 class HandlerInfo(Subscriber):
     debug = True
 
-    def build(
-        self,
-    ):
+    def build(self):
         self.glyph = None
         self.glyph_editor = self.getGlyphEditor()
         self.container = self.glyph_editor.extensionContainer(
