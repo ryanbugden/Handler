@@ -99,4 +99,4 @@ class HandlerInfo(Subscriber):
         self.draw_info()
 
 
-registerGlyphEditorSubscriber(HandlerInfo)
+# registerGlyphEditorSubscriber(HandlerInfo)

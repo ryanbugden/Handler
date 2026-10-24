@@ -3,7 +3,7 @@ developer: Ryan Bugden
 developerURL: http://ryanbugden.com
 launchAtStartUp: true
 mainScript: subscriber.py
-version: 0.1
+version: 0.2
 addToMenu:
 - path: handler.py
   preferredName: Handler

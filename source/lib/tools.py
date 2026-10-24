@@ -38,6 +38,8 @@ def calc_operation(distance, text):
         return distance / float(text.split("/")[-1].strip())
     elif "*" in text:
         return distance * float(text.split("*")[-1].strip())
+    elif "+" in text:
+        return distance + float(text.split("+")[-1].strip())
     else:
         return distance + float(text.strip())
 
@@ -101,3 +103,31 @@ def change_handle_length(input_text, glyph):
             new_dist = calc_operation(distance, input_text)
             set_dist_pt(pt, base, new_dist)
     glyph.changed()
+
+
+def copy_selection(source, target):
+    """Copy point and b-point selection states from source to target"""
+    for source_contour, target_contour in zip(source.contours, target.contours):
+        for source_pt, target_pt in zip(source_contour.points, target_contour.points):
+            target_pt.selected = source_pt.selected
+        for source_bpt, target_bpt in zip(
+            source_contour.bPoints, target_contour.bPoints
+        ):
+            target_bpt.selected = source_bpt.selected
+
+
+def contour_has_selected_points(contour):
+    for pt in contour.points:
+        if pt.selected:
+            return True
+    for bpt in contour.bPoints:
+        if bpt.selected:
+            return True
+    return False
+
+
+def glyph_has_selected_points(glyph):
+    for contour in glyph.contours:
+        if contour_has_selected_points(contour):
+            return True
+    return False

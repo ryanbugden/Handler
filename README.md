@@ -15,13 +15,13 @@ A RoboFont extension for viewing and manipulating off-curve handle lengths.
       *Note: You can set a keyboard shortcut for Handler through RoboFont’s preferences:* 
       `Preferences > Short Keys > Extensions > Handler > Handler`
 
-      | Input | Effect                    |
-      | ----- | ------------------------- |
-      | `2`   | Add 2 units               |
-      | `-2`  | Subtract 2 units          |
-      | `=2`  | Set the length to 2 units |
-      | `*2`  | Multiply by 2             |
-      | `/2`  | Divide by 2               |
+      | Input       | Effect                    |
+      | ----------- | ------------------------- |
+      | `2` or `+2` | Add 2 units               |
+      | `-2`        | Subtract 2 units          |
+      | `=2`        | Set the length to 2 units |
+      | `*2`        | Multiply by 2             |
+      | `/2`        | Divide by 2               |
 
 6. **Refine the value** using ↑ and ↓ arrow keys. Hold ⇧ for increments of `10` or ⇧⌘ for increments of `100`. Any leading operator (`=`, `*`, or `/`) stays unchanged.
 

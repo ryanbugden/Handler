@@ -21,6 +21,7 @@ class Handler(Subscriber, ezui.WindowController):
         ---
 
         (Apply)     @apply
+        (Cancel)    @cancel
         """
         descriptionData = dict(
             value=dict(
@@ -31,6 +32,10 @@ class Handler(Subscriber, ezui.WindowController):
             apply=dict(
                 width="fill",
             ),
+            cancel=dict(
+                width="fill",
+                keyEquivalent=chr(27),
+            ),
         )
         self.w = ezui.EZPopUp(
             content=content,
@@ -40,10 +45,14 @@ class Handler(Subscriber, ezui.WindowController):
             size="auto",
             defaultButton="apply",
         )
+
         # Set up Merz container
         self.glyph_editor = CurrentGlyphWindow()
-        self.container = self.glyph_editor.extensionContainer(
+        self.fg_container = self.glyph_editor.extensionContainer(
             identifier="Handler.foreground", location="foreground", clear=True
+        )
+        self.bg_container = self.glyph_editor.extensionContainer(
+            identifier="Handler.background", location="background", clear=True
         )
 
         # Set window values
@@ -68,38 +77,44 @@ class Handler(Subscriber, ezui.WindowController):
     def destroy(self):
         self.clear_all_sublayers()
 
+    # UI OPERATIONS
+
     def operation_from_string(self, text):
         """Store the operator prefix and convert the remaining text to a number"""
         text = text.strip()
         self.value_operator = ""
 
-        if text.startswith(("*", "/", "=")):
+        if text.startswith(("*", "/", "=", "+")):
             self.value_operator = text[0]
             text = text[1:].strip()
 
         return self.number_from_string(text)
 
     def operation_to_string(self, value):
-        """Format the number with the stored operator prefix"""
-        return self.value_operator + self.number_to_string(value)
+        """Format the number without duplicating its sign."""
+        text = self.number_to_string(value)
+        operator = self.value_operator
+        if operator == "+" and text.startswith("-"):
+            operator = ""
+        return operator + text
 
-    def copy_selection(self, source, target):
-        """Copy point and b-point selection states from source to target"""
-        for source_contour, target_contour in zip(source.contours, target.contours):
-            for source_pt, target_pt in zip(
-                source_contour.points, target_contour.points
-            ):
-                target_pt.selected = source_pt.selected
-            for source_bpt, target_bpt in zip(
-                source_contour.bPoints, target_contour.bPoints
-            ):
-                target_bpt.selected = source_bpt.selected
+    # CALLBACKS
 
     def valueCallback(self, sender):
         text_field = self.w.getItem("value")
         self.value = str(text_field.getNSTextField().stringValue()).strip()
         self.glyph = CurrentGlyph()
         self.draw_preview()
+
+    def cancelCallback(self, sender):
+        self.clear_all_sublayers()
+        self.w.close()
+
+    def applyCallback(self, sender):
+        tools.change_handle_length(self.value, self.glyph)
+        self.w.close()
+
+    # MERZ DISPLAY
 
     def draw_preview(self):
         self.clear_all_sublayers()
@@ -115,42 +130,56 @@ class Handler(Subscriber, ezui.WindowController):
 
         self.w.getItem("apply").enable(True)
 
-        g_copy = self.glyph.copy()
-        self.copy_selection(self.glyph, g_copy)
-        tools.change_handle_length(self.value, g_copy)
-
+        # Clear previous drawing
         self.clear_all_sublayers()
 
-        # Draw the glyph shape
-        self.stroked_preview = self.container.appendPathSublayer(
-            strokeColor=(0.8, 0, 0, 1), fillColor=(1, 0, 0, 0.1), strokeWidth=2
+        g_copy = self.glyph.copy()
+        tools.copy_selection(self.glyph, g_copy)
+        tools.change_handle_length(self.value, g_copy)
+
+        # Filter which contours get a stroke
+        visible_contours = [
+            contour for contour in g_copy.contours if tools.has_selected_points(contour)
+        ]
+
+        # Draw the contours’ shape
+        self.stroked_preview = self.bg_container.appendPathSublayer(
+            strokeColor=(0.8, 0, 0, 1), fillColor=(1, 0, 0, 0), strokeWidth=1
         )
-        glyph_path = g_copy.getRepresentation("merz.CGPath")
-        self.stroked_preview.setPath(glyph_path)
+        pen = self.stroked_preview.getPen()
+        for contour in visible_contours:
+            contour.draw(pen)
 
         # Draw the points and info
         sel_stroke = getDefault("glyphViewSelectionStrokeWidth")
         radius = getDefault("glyphViewOnCurvePointsSize") + sel_stroke / 2
         small_radius = getDefault("glyphViewOffCurvePointsSize") + sel_stroke / 2
         font_size = getDefault("textFontSize")
-        bpts = [bpt for c in g_copy.contours for bpt in c.bPoints]
-        sel_pt_coords = [(pt.x, pt.y) for pt in g_copy.selectedPoints if pt.type == "offcurve"]
+        bpts = [bpt for contour in visible_contours for bpt in contour.bPoints]
+        sel_pt_coords = [
+            (pt.x, pt.y) for pt in g_copy.selectedPoints if pt.type == "offcurve"
+        ]
         for bpt in bpts:
+            show_on_curve = True
             for coord in [bpt.bcpIn, bpt.bcpOut]:
                 adj_coord = (bpt.anchor[0] + coord[0], bpt.anchor[1] + coord[1])
                 if adj_coord == bpt.anchor:
                     continue
 
+                if not bpt.selected and adj_coord not in sel_pt_coords:
+                    show_on_curve = False
+                    continue
+
                 # Handles
-                self.container.appendLineSublayer(
+                self.fg_container.appendLineSublayer(
                     startPoint=bpt.anchor,
                     endPoint=adj_coord,
                     strokeColor=(1, 0, 0, 1),
-                    strokeWidth=1,
+                    strokeWidth=sel_stroke,
                 )
 
                 # Handle points
-                self.container.appendSymbolSublayer(
+                self.fg_container.appendSymbolSublayer(
                     imageSettings=dict(
                         name="oval",
                         size=(small_radius * 2, small_radius * 2),
@@ -162,7 +191,7 @@ class Handler(Subscriber, ezui.WindowController):
 
                 # Handle info
                 distance = tools.calc_dist((0, 0), coord)
-                text_line_layer = self.container.appendTextLineSublayer(
+                text_line_layer = self.fg_container.appendTextLineSublayer(
                     position=adj_coord,
                     size=(800, 50),
                     backgroundColor=None,
@@ -172,27 +201,24 @@ class Handler(Subscriber, ezui.WindowController):
                     offset=(0, -8),
                 )
                 text_line_layer.setPointSize(font_size)
-                # Make text bolder if selected
-                if bpt.selected or adj_coord in sel_pt_coords:
-                    text_line_layer.setWeight("black")
 
-            # On-curves
-            self.container.appendSymbolSublayer(
-                imageSettings=dict(
-                    name="oval",
-                    size=(radius * 2, radius * 2),
-                    fillColor=(1, 0, 0, 1),
-                    strokeColor=None,
-                ),
-                position=bpt.anchor,
-            )
-
-    def applyCallback(self, sender):
-        tools.change_handle_length(self.value, self.glyph)
-        self.w.close()
+            if show_on_curve:
+                # On-curves
+                self.fg_container.appendSymbolSublayer(
+                    imageSettings=dict(
+                        name="oval",
+                        size=(radius * 2, radius * 2),
+                        fillColor=(1, 0, 0, 1),
+                        strokeColor=None,
+                    ),
+                    position=bpt.anchor,
+                )
 
     def clear_all_sublayers(self):
-        self.container.clearSublayers()
+        self.fg_container.clearSublayers()
+        self.bg_container.clearSublayers()
+
+    # SUBSCRIBERS
 
     def glyphEditorDidMouseUp(self, info):
         self.glyph = info["glyph"]
@@ -205,4 +231,5 @@ class Handler(Subscriber, ezui.WindowController):
             self.draw_preview()
 
 
-Handler(parent=CurrentGlyphWindow().editGlyphView)
+if tools.glyph_has_selected_points(CurrentGlyph()):
+    Handler(parent=CurrentGlyphWindow().editGlyphView)
