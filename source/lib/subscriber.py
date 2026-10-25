@@ -30,26 +30,33 @@ class HandlerInfo(Subscriber):
         text_color = getDefault(appearanceColorKey("glyphViewPointLabelColor"))
         font_size = getDefault("textFontSize")
 
-        # Collect data: coordinates to draw on, and distance data to write
+        # Draw selected handles and their opposites
+        drawn = set()
         for pt, data in tools.selected_handles(self.glyph.contours).items():
             base_pt = data["base"]
             base = (base_pt.x, base_pt.y)
-            handle = (pt.x, pt.y)
-            # Skip same coordinate
-            if handle == base:
-                continue
-            distance = tools.calc_dist(base, handle)
-            text_line_layer = self.container.appendTextLineSublayer(
-                position=handle,
-                size=(0, 0),
-                backgroundColor=None,
-                text=f"L={otRound(distance)}",
-                fillColor=text_color,
-                horizontalAlignment="center",
-                offset=(0, -8),
-            )
-            text_line_layer.setPointSize(font_size)
-            text_line_layer.setWeight("semibold")
+            # Go through selected off-curve and its opposite
+            for handle_pt in (pt, data["opposite"]):
+                if handle_pt is None or handle_pt in drawn:
+                    continue
+                handle = (handle_pt.x, handle_pt.y)
+                # Skip same coordinate
+                if handle == base:
+                    continue
+                drawn.add(handle_pt)
+                # Draw distance info
+                distance = tools.calc_dist(base, handle)
+                text_line_layer = self.container.appendTextLineSublayer(
+                    position=handle,
+                    size=(0, 0),
+                    backgroundColor=None,
+                    text=f"L={otRound(distance)}",
+                    fillColor=text_color,
+                    horizontalAlignment="center",
+                    offset=(0, -8),
+                )
+                text_line_layer.setPointSize(font_size)
+                text_line_layer.setWeight("semibold")
 
     def glyphEditorGlyphDidEndChangeSelection(self, info):
         self.glyph = info["glyph"]
