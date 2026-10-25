@@ -49,10 +49,10 @@ class Handler(Subscriber, ezui.WindowController):
         # Set up Merz container
         self.glyph_editor = CurrentGlyphWindow()
         self.fg_container = self.glyph_editor.extensionContainer(
-            identifier="Handler.foreground", location="foreground", clear=True
+            identifier="editor.Handler.foreground", location="foreground", clear=True
         )
         self.bg_container = self.glyph_editor.extensionContainer(
-            identifier="Handler.background", location="background", clear=True
+            identifier="editor.Handler.background", location="background", clear=True
         )
 
         # Set window values
@@ -117,21 +117,17 @@ class Handler(Subscriber, ezui.WindowController):
     # MERZ DISPLAY
 
     def draw_preview(self):
+        # Clear previous drawing
         self.clear_all_sublayers()
-        self.w.getItem("apply").enable(False)
 
+        self.w.getItem("apply").enable(False)
         if self.glyph is None or not self.glyph.bounds:
             return
-
         try:
             tools.calc_operation(1, self.value)
         except (ValueError, ZeroDivisionError):
             return
-
         self.w.getItem("apply").enable(True)
-
-        # Clear previous drawing
-        self.clear_all_sublayers()
 
         g_copy = self.glyph.copy()
         tools.copy_selection(self.glyph, g_copy)
@@ -139,7 +135,9 @@ class Handler(Subscriber, ezui.WindowController):
 
         # Filter which contours get a stroke
         visible_contours = [
-            contour for contour in g_copy.contours if tools.has_selected_points(contour)
+            contour
+            for contour in g_copy.contours
+            if tools.contour_has_selected_points(contour)
         ]
 
         # Draw the contours’ shape
@@ -155,55 +153,40 @@ class Handler(Subscriber, ezui.WindowController):
         radius = getDefault("glyphViewOnCurvePointsSize") + sel_stroke / 2
         small_radius = getDefault("glyphViewOffCurvePointsSize") + sel_stroke / 2
         font_size = getDefault("textFontSize")
-        bpts = [bpt for contour in visible_contours for bpt in contour.bPoints]
-        sel_pt_coords = [
-            (pt.x, pt.y) for pt in g_copy.selectedPoints if pt.type == "offcurve"
-        ]
-        for bpt in bpts:
-            show_on_curve = True
-            for coord in [bpt.bcpIn, bpt.bcpOut]:
-                adj_coord = (bpt.anchor[0] + coord[0], bpt.anchor[1] + coord[1])
-                if adj_coord == bpt.anchor:
-                    continue
 
-                if not bpt.selected and adj_coord not in sel_pt_coords:
-                    show_on_curve = False
-                    continue
-
-                # Handles
-                self.fg_container.appendLineSublayer(
-                    startPoint=bpt.anchor,
-                    endPoint=adj_coord,
-                    strokeColor=(1, 0, 0, 1),
-                    strokeWidth=sel_stroke,
-                )
-
-                # Handle points
-                self.fg_container.appendSymbolSublayer(
-                    imageSettings=dict(
-                        name="oval",
-                        size=(small_radius * 2, small_radius * 2),
-                        fillColor=(1, 0, 0, 1),
-                        strokeColor=None,
-                    ),
-                    position=adj_coord,
-                )
-
-                # Handle info
-                distance = tools.calc_dist((0, 0), coord)
-                text_line_layer = self.fg_container.appendTextLineSublayer(
-                    position=adj_coord,
-                    size=(800, 50),
-                    backgroundColor=None,
-                    text=f"L={otRound(distance)}",
+        # Go through point data
+        info_coords = []
+        drawn_bases = set()
+        for pt, data in tools.selected_handles(visible_contours).items():
+            base_pt = data["base"]
+            base = (base_pt.x, base_pt.y)
+            handle = (pt.x, pt.y)
+            # Skip same coordinate
+            if handle == base:
+                continue
+            distance = tools.calc_dist(base, handle)
+            # Store handle info for drawing later
+            info_coords.append((handle, distance))
+            # Handles
+            self.fg_container.appendLineSublayer(
+                startPoint=base,
+                endPoint=handle,
+                strokeColor=(1, 0, 0, 1),
+                strokeWidth=sel_stroke,
+            )
+            # Handle points
+            self.fg_container.appendSymbolSublayer(
+                imageSettings=dict(
+                    name="oval",
+                    size=(small_radius * 2, small_radius * 2),
                     fillColor=(1, 0, 0, 1),
-                    horizontalAlignment="center",
-                    offset=(0, -8),
-                )
-                text_line_layer.setPointSize(font_size)
-
-            if show_on_curve:
-                # On-curves
+                    strokeColor=None,
+                ),
+                position=handle,
+            )
+            # On-curves
+            if base_pt not in drawn_bases:
+                drawn_bases.add(base_pt)
                 self.fg_container.appendSymbolSublayer(
                     imageSettings=dict(
                         name="oval",
@@ -211,8 +194,23 @@ class Handler(Subscriber, ezui.WindowController):
                         fillColor=(1, 0, 0, 1),
                         strokeColor=None,
                     ),
-                    position=bpt.anchor,
+                    position=base,
                 )
+
+        # Draw info last, so it's on top
+        for coord, distance in info_coords:
+            text_line_layer = self.fg_container.appendTextLineSublayer(
+                position=coord,
+                size=(800, 50),
+                backgroundColor=(1, 0, 0, 0.5),
+                text=f" L={otRound(distance)}  ",
+                fillColor=(1, 1, 1, 1),
+                horizontalAlignment="center",
+                verticalAlignment="center",
+                offset=(0, -20),
+            )
+            text_line_layer.setPointSize(font_size)
+            text_line_layer.setWeight("semibold")
 
     def clear_all_sublayers(self):
         self.fg_container.clearSublayers()
@@ -222,14 +220,13 @@ class Handler(Subscriber, ezui.WindowController):
 
     def glyphEditorDidMouseUp(self, info):
         self.glyph = info["glyph"]
-        if self.glyph.bounds:
-            self.draw_preview()
+        self.draw_preview()
 
     def glyphEditorDidSetGlyph(self, info):
         self.glyph = info["glyph"]
-        if self.glyph.bounds:
-            self.draw_preview()
+        self.draw_preview()
 
 
-if tools.glyph_has_selected_points(CurrentGlyph()):
+glyph = CurrentGlyph()
+if glyph and tools.glyph_has_selected_points(glyph):
     Handler(parent=CurrentGlyphWindow().editGlyphView)

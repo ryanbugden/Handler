@@ -44,22 +44,6 @@ def calc_operation(distance, text):
         return distance + float(text.strip())
 
 
-def set_dist_bpt(bpt, distance, direction="in"):
-    """Set the distance of a b-point’s handle"""
-    attr = f"bcp{direction.title()}"
-    handle = getattr(bpt, attr)
-    # Skip no-handles
-    if handle == (0, 0):
-        return
-    angle = calc_angle((0, 0), handle)
-    # Calculate new position, using angle
-    new_pos = (
-        my_round(distance * math.cos(angle)),
-        my_round(distance * math.sin(angle)),
-    )
-    setattr(bpt, attr, new_pos)
-
-
 def set_dist_pt(pt, base_coord, distance):
     """Set a handle point’s distance from its base on-curve."""
     handle = (pt.x, pt.y)
@@ -75,28 +59,8 @@ def set_dist_pt(pt, base_coord, distance):
 
 def change_handle_length(input_text, glyph):
     with glyph.undo("Change handle length"):
-        # Handle when on-curves are selected (in RoboFont, the off-curves are highlighted, which suggests selection)
-        for bpt in glyph.selectedBPoints:
-            for direction in ("in", "out"):
-                attr = f"bcp{direction.title()}"
-                handle = getattr(bpt, attr)
-                distance = calc_dist((0, 0), handle)
-                new_dist = calc_operation(distance, input_text)
-                set_dist_bpt(bpt, new_dist, direction=direction)
-        # Handle when off-curves are explicity selected
-        for pt in glyph.selectedPoints:
-            if pt.type != "offcurve":
-                continue
-            points = pt.contour.points
-            i = pt.index
-            prev_pt = points[i - 1]
-            next_pt = points[i - len(points) + 1]
-            if prev_pt.type != "offcurve":
-                base_pt = prev_pt
-            elif next_pt.type != "offcurve":
-                base_pt = next_pt
-            else:
-                continue
+        for pt, data in selected_handles(glyph.contours).items():
+            base_pt = data["base"]
             base = (base_pt.x, base_pt.y)
             handle = (pt.x, pt.y)
             distance = calc_dist(base, handle)
@@ -131,3 +95,38 @@ def glyph_has_selected_points(glyph):
         if contour_has_selected_points(contour):
             return True
     return False
+
+
+def selected_handles(contours):
+    """Map selected handles and handles of selected on-curves to base/opposite points."""
+    handles = {}
+    for contour in contours:
+        points = contour.points
+        for i, pt in enumerate(points):
+            # Only interested in off-curves
+            if pt.type != "offcurve":
+                continue
+            # Capture the base point and the opposite point
+            prev_pt = points[i - 1]
+            next_pt = points[i - len(points) + 1]
+            opposite_pt = None
+            if prev_pt.type != "offcurve":
+                base = prev_pt
+                if not contour.open or i >= 2:
+                    opposite_pt = points[i - 2]
+            elif next_pt.type != "offcurve":
+                base = next_pt
+                if not contour.open or i + 2 < len(points):
+                    opposite_pt = points[i - len(points) + 2]
+            else:
+                continue
+            # Check whether selected
+            if not (pt.selected or base.selected):
+                continue
+            # Get opposite point if it's a handle
+            opposite = None
+            if opposite_pt is not None and opposite_pt.type == "offcurve":
+                opposite = opposite_pt
+            handles[pt] = dict(base=base, opposite=opposite)
+
+    return handles
