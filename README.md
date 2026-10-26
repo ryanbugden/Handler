@@ -1,3 +1,5 @@
+<img src="source/resources/mechanic_icon.png"  width="100">
+
 # Handler
 
 A RoboFont extension for viewing and manipulating off-curve handle lengths.
